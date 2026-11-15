@@ -69,7 +69,7 @@ export function getCard(cardId: number): Card | ErrorResponse {
   return card;
 }
 
-export function listCards() {
+export function listCard() {
   const cards = [];
   for (const card of data.cards) {
     cards.push({ cardId: card.cardId, type: card.type, question: card.question });

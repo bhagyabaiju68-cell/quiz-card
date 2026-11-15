@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { clear, data } from '../dataStore.ts';
-import { createCard, getCard, listCards, editCard, deleteCard, checkAnswer } from '../cards.ts';
+import { createCard, getCard, listCard, editCard, deleteCard, checkAnswer } from '../cards.ts';
 import type { CardType, ChoiceOption, NewCardInput } from '../types.ts';
 
 // Valid options to reuse in tests
@@ -188,14 +188,14 @@ describe('getCard', () => {
   });
 });
 
-describe('listCards', () => {
+describe('listCard', () => {
   test('returns empty list when there are no cards', () => {
-    expect(listCards()).toStrictEqual({ cards: [] });
+    expect(listCard()).toStrictEqual({ cards: [] });
   });
   test('returns list of cards with cardId, type, question', () => {
     createCard(singleCard);
     createCard(multipleCard);
-    expect(listCards()).toStrictEqual({
+    expect(listCard()).toStrictEqual({
       cards: [
         { cardId: 1, type: 'SINGLE', question: 'Capital of France?' },
         { cardId: 2, type: 'MULTIPLE', question: 'Even numbers?' },
@@ -251,13 +251,13 @@ describe('deleteCard', () => {
     createCard(singleCard);
     expect(deleteCard(1)).toStrictEqual({});
     expect(getCard(1)).toStrictEqual({ error: expect.any(String) });
-    expect(listCards()).toStrictEqual({ cards: [] });
+    expect(listCard()).toStrictEqual({ cards: [] });
   });
   test('only removes the required card', () => {
     createCard(singleCard);
     createCard(multipleCard);
     deleteCard(1);
-    expect(listCards()).toStrictEqual({
+    expect(listCard()).toStrictEqual({
       cards: [{ cardId: 2, type: 'MULTIPLE', question: 'Even numbers?' }],
     });
   });
