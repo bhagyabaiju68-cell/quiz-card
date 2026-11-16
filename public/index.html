@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Quiz Cards</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .type { color: #666; font-size: 13px; }
+    .error { color: red; }
+    input[type=text] { width: 70%; padding: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Quiz Cards</h1>
+
+  <h2>New card</h2>
+  <form id="create-form">
+    <p>
+      <select id="type">
+        <option value="SINGLE">Single choice</option>
+        <option value="MULTIPLE">Multiple choice</option>
+      </select>
+    </p>
+    <p><input type="text" id="question" placeholder="Question"></p>
+    <p><input type="text" class="option-text" placeholder="Option 1"> <label><input type="checkbox" class="option-correct"> correct</label></p>
+    <p><input type="text" class="option-text" placeholder="Option 2"> <label><input type="checkbox" class="option-correct"> correct</label></p>
+    <p><input type="text" class="option-text" placeholder="Option 3 (optional)"> <label><input type="checkbox" class="option-correct"> correct</label></p>
+    <p><input type="text" class="option-text" placeholder="Option 4 (optional)"> <label><input type="checkbox" class="option-correct"> correct</label></p>
+    <button type="submit">Add card</button>
+    <p id="create-error" class="error"></p>
+  </form>
+
+  <h2>All cards</h2>
+  <div id="card-list"></div>
+
+  <script>
+    // ask the server for all cards and show them on the page
+    function loadCards() {
+      fetch('/cards')
+        .then((response) => response.json())
+        .then((data) => {
+          const list = document.getElementById('card-list');
+          list.textContent = '';
+
+          if (data.cards.length === 0) {
+            list.textContent = 'No cards yet.';
+            return;
+          }
+
+          for (const card of data.cards) {
+            const div = document.createElement('div');
+            div.className = 'card';
+
+            const question = document.createElement('strong');
+            question.textContent = card.question;
+
+            const type = document.createElement('div');
+            type.className = 'type';
+            type.textContent = card.type === 'SINGLE' ? 'Single choice' : 'Multiple choice';
+
+            div.appendChild(question);
+            div.appendChild(type);
+            list.appendChild(div);
+          }
+        });
+    }
+
+    // when the form is submitted, send the new card to the server
+    document.getElementById('create-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const texts = document.querySelectorAll('.option-text');
+      const corrects = document.querySelectorAll('.option-correct');
+      const options = [];
+      for (let i = 0; i < texts.length; i++) {
+        if (texts[i].value !== '') {
+          options.push({ text: texts[i].value, isCorrect: corrects[i].checked });
+        }
+      }
+
+      const newCard = {
+        type: document.getElementById('type').value,
+        question: document.getElementById('question').value,
+        options: options
+      };
+
+      fetch('/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCard)
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          const errorBox = document.getElementById('create-error');
+          if (result.error) {
+            errorBox.textContent = result.error;
+            return;
+          }
+          errorBox.textContent = '';
+          document.getElementById('create-form').reset();
+          loadCards();
+        });
+    });
+
+    loadCards();
+  </script>
+</body>
+</html>

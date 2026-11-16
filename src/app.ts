@@ -4,6 +4,7 @@ import { createCard, getCard, listCard, editCard, deleteCard, checkAnswer } from
 
 export const app = express();
 app.use(express.json());
+app.use(express.static('public'));
 
 app.post('/cards', (req: Request, res: Response) => {
   const result = createCard(req.body);
