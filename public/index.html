@@ -18,7 +18,7 @@
 <body>
   <h1>Quiz Cards</h1>
 
-  <h2>New card</h2>
+  <h2 id="form-title">New card</h2>
   <form id="create-form">
     <p>
       <select id="type">
@@ -31,7 +31,8 @@
     <p><input type="text" class="option-text" placeholder="Option 2"> <label><input type="checkbox" class="option-correct"> correct</label></p>
     <p><input type="text" class="option-text" placeholder="Option 3 (optional)"> <label><input type="checkbox" class="option-correct"> correct</label></p>
     <p><input type="text" class="option-text" placeholder="Option 4 (optional)"> <label><input type="checkbox" class="option-correct"> correct</label></p>
-    <button type="submit">Add card</button>
+    <button type="submit" id="submit-button">Add card</button>
+    <button type="button" id="cancel-edit" style="display: none;">Cancel</button>
     <p id="create-error" class="error"></p>
   </form>
 
@@ -68,14 +69,92 @@
             type.className = 'type';
             type.textContent = card.type === 'SINGLE' ? 'Single choice' : 'Multiple choice';
 
+            const editButton = document.createElement('button');
+            editButton.textContent = '✏️ Edit';
+            editButton.addEventListener('click', () => {
+              startEdit(card.cardId);
+            });
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '🗑 Delete';
+            deleteButton.addEventListener('click', () => {
+              deleteCard(card.cardId);
+            });
+
             div.appendChild(question);
             div.appendChild(type);
+            div.appendChild(editButton);
+            div.appendChild(document.createTextNode(' '));
+            div.appendChild(deleteButton);
             list.appendChild(div);
           }
         });
     }
 
-    // when the form is submitted, send the new card to the server
+    // ---------- edit + delete ----------
+    let editingId = null; // null = adding a new card, a number = editing that card
+
+    // delete a card after asking first
+    function deleteCard(cardId) {
+      if (!confirm('Delete this card?')) {
+        return;
+      }
+      fetch('/cards/' + cardId, { method: 'DELETE' })
+        .then((response) => response.json())
+        .then(() => {
+          if (editingId === cardId) {
+            stopEdit();
+          }
+          loadCards();
+        });
+    }
+
+    // get the card from the server and put it into the form
+    function startEdit(cardId) {
+      fetch('/cards/' + cardId)
+        .then((response) => response.json())
+        .then((card) => {
+          const errorBox = document.getElementById('create-error');
+          const texts = document.querySelectorAll('.option-text');
+          const corrects = document.querySelectorAll('.option-correct');
+
+          // the form only has 4 option boxes
+          if (card.options.length > texts.length) {
+            errorBox.textContent = 'This card has more than ' + texts.length + ' options, so it can only be edited with curl.';
+            return;
+          }
+
+          document.getElementById('create-form').reset();
+          errorBox.textContent = '';
+          document.getElementById('type').value = card.type;
+          document.getElementById('question').value = card.question;
+          for (let i = 0; i < card.options.length; i++) {
+            texts[i].value = card.options[i].text;
+            corrects[i].checked = card.options[i].isCorrect;
+          }
+
+          editingId = cardId;
+          document.getElementById('form-title').textContent = 'Edit card';
+          document.getElementById('submit-button').textContent = 'Save changes';
+          document.getElementById('cancel-edit').style.display = 'inline';
+          window.scrollTo(0, 0);
+        });
+    }
+
+    // go back to "add a new card" mode
+    function stopEdit() {
+      editingId = null;
+      document.getElementById('create-form').reset();
+      document.getElementById('create-error').textContent = '';
+      document.getElementById('form-title').textContent = 'New card';
+      document.getElementById('submit-button').textContent = 'Add card';
+      document.getElementById('cancel-edit').style.display = 'none';
+    }
+
+    document.getElementById('cancel-edit').addEventListener('click', stopEdit);
+
+    // when the form is submitted, send the card to the server
+    // (POST if it's new, PUT if we're editing one)
     document.getElementById('create-form').addEventListener('submit', (event) => {
       event.preventDefault();
 
@@ -94,8 +173,15 @@
         options: options
       };
 
-      fetch('/cards', {
-        method: 'POST',
+      let url = '/cards';
+      let method = 'POST';
+      if (editingId !== null) {
+        url = '/cards/' + editingId;
+        method = 'PUT';
+      }
+
+      fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCard)
       })
@@ -106,8 +192,7 @@
             errorBox.textContent = result.error;
             return;
           }
-          errorBox.textContent = '';
-          document.getElementById('create-form').reset();
+          stopEdit();
           loadCards();
         });
     });
