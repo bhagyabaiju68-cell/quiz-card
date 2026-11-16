@@ -9,6 +9,10 @@
     .type { color: #666; font-size: 13px; }
     .error { color: red; }
     input[type=text] { width: 70%; padding: 4px; }
+    #quiz-box { border: 2px solid #4a6cf7; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    #quiz-box label { display: block; margin: 6px 0; }
+    .right { color: green; font-weight: bold; }
+    .wrong { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -30,6 +34,11 @@
     <button type="submit">Add card</button>
     <p id="create-error" class="error"></p>
   </form>
+
+  <h2>Quiz</h2>
+  <div id="quiz-box">
+    <button id="start-quiz">Start quiz</button>
+  </div>
 
   <h2>All cards</h2>
   <div id="card-list"></div>
@@ -102,6 +111,158 @@
           loadCards();
         });
     });
+
+    // ---------- quiz mode ----------
+    let quizIds = [];   // the cardIds to go through
+    let quizIndex = 0;  // which question we are on
+    let quizScore = 0;  // how many correct so far
+
+    // get all the cardIds, then show the first question
+    function startQuiz() {
+      fetch('/cards')
+        .then((response) => response.json())
+        .then((data) => {
+          quizIds = [];
+          for (const card of data.cards) {
+            quizIds.push(card.cardId);
+          }
+          quizIndex = 0;
+          quizScore = 0;
+
+          if (quizIds.length === 0) {
+            document.getElementById('quiz-box').textContent = 'Add some cards first.';
+            return;
+          }
+          showQuestion();
+        });
+    }
+
+    // get one card from the server and show its question + options
+    function showQuestion() {
+      const cardId = quizIds[quizIndex];
+      fetch('/cards/' + cardId)
+        .then((response) => response.json())
+        .then((card) => {
+          const box = document.getElementById('quiz-box');
+          box.textContent = '';
+
+          const progress = document.createElement('p');
+          progress.textContent = 'Question ' + (quizIndex + 1) + ' of ' + quizIds.length;
+          box.appendChild(progress);
+
+          const question = document.createElement('strong');
+          question.textContent = card.question;
+          box.appendChild(question);
+
+          const type = document.createElement('div');
+          type.className = 'type';
+          type.textContent = card.type === 'SINGLE' ? 'Pick one' : 'Pick all that are correct';
+          box.appendChild(type);
+
+          // SINGLE = round radio buttons (only one), MULTIPLE = checkboxes (many)
+          for (let i = 0; i < card.options.length; i++) {
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.type = card.type === 'SINGLE' ? 'radio' : 'checkbox';
+            input.name = 'answer';
+            input.value = i;
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(' ' + card.options[i].text));
+            box.appendChild(label);
+          }
+
+          const checkButton = document.createElement('button');
+          checkButton.textContent = 'Check';
+          checkButton.addEventListener('click', () => {
+            checkQuizAnswer(cardId, checkButton);
+          });
+          box.appendChild(checkButton);
+
+          const result = document.createElement('p');
+          result.id = 'quiz-result';
+          box.appendChild(result);
+        });
+    }
+
+    // send the picked option positions to the server, which marks them
+    function checkQuizAnswer(cardId, checkButton) {
+      const inputs = document.querySelectorAll('#quiz-box input[name=answer]');
+      const picked = [];
+      for (let i = 0; i < inputs.length; i++) {
+        if (inputs[i].checked) {
+          picked.push(i);
+        }
+      }
+
+      const result = document.getElementById('quiz-result');
+      if (picked.length === 0) {
+        result.className = 'wrong';
+        result.textContent = 'Pick an answer first.';
+        return;
+      }
+
+      fetch('/cards/' + cardId + '/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ picked: picked })
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.error) {
+            result.className = 'wrong';
+            result.textContent = data.error;
+            return;
+          }
+
+          if (data.correct) {
+            quizScore = quizScore + 1;
+            result.className = 'right';
+            result.textContent = '✅ Correct!';
+          } else {
+            result.className = 'wrong';
+            result.textContent = '❌ Wrong';
+          }
+
+          // lock the answers so they can't be changed after checking
+          for (let i = 0; i < inputs.length; i++) {
+            inputs[i].disabled = true;
+          }
+          checkButton.remove();
+
+          const nextButton = document.createElement('button');
+          nextButton.textContent = quizIndex + 1 < quizIds.length ? 'Next' : 'See score';
+          nextButton.addEventListener('click', () => {
+            quizIndex = quizIndex + 1;
+            if (quizIndex < quizIds.length) {
+              showQuestion();
+            } else {
+              showScore();
+            }
+          });
+          document.getElementById('quiz-box').appendChild(nextButton);
+        });
+    }
+
+    // final screen
+    function showScore() {
+      const box = document.getElementById('quiz-box');
+      box.textContent = '';
+
+      const title = document.createElement('strong');
+      title.textContent = 'Quiz finished!';
+      box.appendChild(title);
+
+      const score = document.createElement('p');
+      score.textContent = 'Score: ' + quizScore + ' / ' + quizIds.length;
+      box.appendChild(score);
+
+      const again = document.createElement('button');
+      again.textContent = 'Start again';
+      again.addEventListener('click', startQuiz);
+      box.appendChild(again);
+    }
+
+    document.getElementById('start-quiz').addEventListener('click', startQuiz);
 
     loadCards();
   </script>
